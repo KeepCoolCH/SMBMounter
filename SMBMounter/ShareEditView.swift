@@ -66,6 +66,27 @@ struct ShareEditView: View {
                             .foregroundColor(.secondary)
                         TextField("SharedFolder", text: $shareName)
                     }
+                    
+                    HStack {
+                        Text("Mount Point")
+                            .frame(width: 100, alignment: .trailing)
+                            .foregroundColor(.secondary)
+                        Text(mountPoint.isEmpty ? "/Volumes/\(shareName.isEmpty ? "ShareName" : shareName)" : mountPoint)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundColor(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    
+                    HStack {
+                        Text("Auto-Mount")
+                            .frame(width: 100, alignment: .trailing)
+                            .foregroundColor(.secondary)
+                        Toggle("", isOn: $autoMount)
+                            .labelsHidden()
+                        Text("Automatically connect and reconnect on disconnect")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Section("Credentials (optional)") {
@@ -101,28 +122,6 @@ struct ShareEditView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                Section("Advanced") {
-                    HStack {
-                        Text("Mount Point")
-                            .frame(width: 100, alignment: .trailing)
-                            .foregroundColor(.secondary)
-                        TextField("/Volumes/\(shareName.isEmpty ? "ShareName" : shareName)", text: $mountPoint)
-                            .autocorrectionDisabled()
-                    }
-                    
-                    HStack {
-                        Text("Auto-Mount")
-                            .frame(width: 100, alignment: .trailing)
-                            .foregroundColor(.secondary)
-                        Toggle("", isOn: $autoMount)
-                            .labelsHidden()
-                        Text("Automatically connect and reconnect on disconnect")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                // Preview
                 if !host.isEmpty && !shareName.isEmpty {
                     Section("Preview") {
                         Text("smb://\(username.isEmpty ? "" : "\(username)@")\(host)/\(shareName)")
