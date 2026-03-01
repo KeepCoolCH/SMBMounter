@@ -10,15 +10,18 @@ class ShareManager: ObservableObject {
     @Published var shares: [SMBShare] = []
     
     private var manuallyDisconnected: Set<UUID> = []
+    private var failCount: [UUID: Int] = [:]
+    
+    private let mountQueue = DispatchQueue(label: "com.smbmounter.mount", qos: .background)
+    private let monitorQueue = DispatchQueue(label: "com.smbmounter.monitor", qos: .background)
     
     private var monitorTimer: Timer?
-    private let monitorQueue = DispatchQueue(label: "com.smbmounter.monitor", qos: .background)
-    private let reconnectInterval: TimeInterval = 15
-    private var isNetworkAvailable: Bool = false
-    private var networkMonitor: NWPathMonitor?
     private var recoveryTimer: Timer?
+    private var networkMonitor: NWPathMonitor?
+    private var isNetworkAvailable: Bool = false
     private var networkRecoveryRetries: Int = 0
     private let maxRecoveryRetries = 8
+    private let reconnectInterval: TimeInterval = 15
     
     private init() {
         loadShares()
@@ -82,7 +85,7 @@ class ShareManager: ObservableObject {
         networkMonitor?.cancel()
     }
     
-    // MARK: - Recovery after network reconnect
+    // MARK: - Recovery
     
     private func startRecoveryRetries() {
         stopRecoveryRetries()
@@ -107,49 +110,106 @@ class ShareManager: ObservableObject {
     }
     
     private func setAllDisconnectedSilently() {
-        for i in shares.indices {
-            if shares[i].status != .disconnected {
-                shares[i].status = .disconnected
-                shares[i].lastError = nil
-            }
+        for i in shares.indices where shares[i].status != .disconnected {
+            shares[i].status = .disconnected
+            shares[i].lastError = nil
         }
+        failCount = [:]
         updateAppIcon()
     }
     
-    // MARK: - Reconnect logic
-    
     private func checkAndReconnect() {
         guard isNetworkAvailable else { return }
-        for share in shares where share.autoMount && !manuallyDisconnected.contains(share.id) {
-            if !isMounted(share) {
-                mount(share)
-            }
-        }
+        mountAllAutoShares()
         updateMountStatuses()
     }
     
     func mountAllAutoShares() {
         for share in shares where share.autoMount && !manuallyDisconnected.contains(share.id) {
-            if !isMounted(share) {
+            if !isMounted(share) && share.status != .connecting {
                 mount(share)
             }
         }
         updateMountStatuses()
     }
     
+    // MARK: - Bonjour check
+    
+    private func isBonjourAvailable(for serverName: String) -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        var found = false
+        
+        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_smb._tcp", domain: "local"), using: .tcp)
+        browser.browseResultsChangedHandler = { results, _ in
+            for result in results {
+                if case .service(let name, _, _, _) = result.endpoint {
+                    if name.lowercased() == serverName.lowercased() {
+                        found = true
+                        semaphore.signal()
+                    }
+                }
+            }
+        }
+        browser.stateUpdateHandler = { state in
+            if case .failed = state { semaphore.signal() }
+        }
+        browser.start(queue: monitorQueue)
+        _ = semaphore.wait(timeout: .now() + 3.0)
+        browser.cancel()
+        return found
+    }
+    
+    // MARK: - Host candidates
+    
+    private func hostCandidates(for host: String) -> [String] {
+        if host.hasSuffix(".local") && !host.contains("._smb._tcp") {
+            let name = String(host.dropLast(6))
+            return ["\(name)._smb._tcp.local", "\(name).local", name]
+        }
+        if host.contains("._smb._tcp") {
+            let plain = host.components(separatedBy: "._smb._tcp").first ?? host
+            return [host, plain]
+        }
+        return [host]
+    }
+    
+    private func resolvedHost(for share: SMBShare) -> String {
+        let candidates = hostCandidates(for: share.host)
+        let failures = failCount[share.id] ?? 0
+        let attemptsPerCandidate = 2
+        var index = min(failures / attemptsPerCandidate, candidates.count - 1)
+        
+        if index == 0 && candidates[0].contains("._smb._tcp") && failures == 0 {
+            let serverName = String(share.host.hasSuffix(".local") ? share.host.dropLast(6) : Substring(share.host))
+            if !isBonjourAvailable(for: serverName) {
+                index = 1
+                failCount[share.id] = attemptsPerCandidate
+            }
+        }
+        
+        return candidates[min(index, candidates.count - 1)]
+    }
+    
     // MARK: - Mount Status
     
     func isMounted(_ share: SMBShare) -> Bool {
-        let host = share.host.lowercased()
+        let baseHost: String
+        if share.host.hasSuffix(".local") && !share.host.contains("._smb._tcp") {
+            baseHost = String(share.host.dropLast(6)).lowercased()
+        } else if share.host.contains("._smb._tcp") {
+            baseHost = (share.host.components(separatedBy: "._smb._tcp").first ?? share.host).lowercased()
+        } else {
+            baseHost = share.host.lowercased()
+        }
         let shareName = share.shareName.lowercased()
-        let mountedVolumes = FileManager.default.mountedVolumeURLs(
-            includingResourceValuesForKeys: [.volumeURLForRemountingKey],
-            options: []
+        
+        let vols = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: [.volumeURLForRemountingKey], options: []
         ) ?? []
-        for volumeURL in mountedVolumes {
-            if let remountURL = try? volumeURL.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
-                let remount = remountURL.absoluteString.lowercased()
-                if remount.contains("smb") && remount.contains(host) && remount.contains(shareName) {
+        for vol in vols {
+            if let r = try? vol.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
+                let s = r.absoluteString.lowercased()
+                if s.contains("smb") && s.contains(baseHost) && s.contains(shareName) {
                     return true
                 }
             }
@@ -186,38 +246,45 @@ class ShareManager: ObservableObject {
     func mount(_ share: SMBShare) {
         manuallyDisconnected.remove(share.id)
         
-        if let current = shares.first(where: { $0.id == share.id }), current.status == .connecting {
-            return
-        }
-        
         guard let idx = shares.firstIndex(where: { $0.id == share.id }) else { return }
-        DispatchQueue.main.async {
-            self.shares[idx].status = .connecting
-        }
-        monitorQueue.async {
+        guard shares[idx].status != .connecting && shares[idx].status != .mounted else { return }
+        
+        shares[idx].status = .connecting
+        updateAppIcon()
+        
+        mountQueue.async {
             self.performMount(share)
         }
     }
     
     private func performMount(_ share: SMBShare) {
         let password = KeychainHelper.shared.getPassword(for: share.id) ?? ""
+        let host = resolvedHost(for: share)
         
         var urlString: String
         if !share.username.isEmpty && !password.isEmpty {
             let encodedPass = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
             let encodedUser = share.username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? share.username
-            urlString = "smb://\(encodedUser):\(encodedPass)@\(share.host)/\(share.shareName)"
+            urlString = "smb://\(encodedUser):\(encodedPass)@\(host)/\(share.shareName)"
         } else if !share.username.isEmpty {
-            urlString = "smb://\(share.username)@\(share.host)/\(share.shareName)"
+            urlString = "smb://\(share.username)@\(host)/\(share.shareName)"
         } else {
-            urlString = "smb://\(share.host)/\(share.shareName)"
+            urlString = "smb://\(host)/\(share.shareName)"
         }
         
-        let script = "tell application \"Finder\" to mount volume \"\(urlString)\""
+        let script = """
+        try
+            tell application "Finder"
+                with timeout of 10 seconds
+                    mount volume "\(urlString)"
+                end timeout
+            end tell
+        on error
+        end try
+        """
         let task = Process()
         task.launchPath = "/usr/bin/osascript"
         task.arguments = ["-e", script]
-        
         let pipe = Pipe()
         task.standardError = pipe
         task.standardOutput = Pipe()
@@ -226,43 +293,44 @@ class ShareManager: ObservableObject {
             try task.run()
             task.waitUntilExit()
             
-            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
             Thread.sleep(forTimeInterval: 1.5)
             
             DispatchQueue.main.async {
                 guard let idx = self.shares.firstIndex(where: { $0.id == share.id }) else { return }
-                if task.terminationStatus == 0 || self.isMounted(self.shares[idx]) {
+                
+                if self.isMounted(self.shares[idx]) {
+                    self.failCount[share.id] = nil
                     self.shares[idx].status = .mounted
                     self.shares[idx].lastConnected = Date()
                     self.shares[idx].lastError = nil
                     self.sendNotification(title: "Connected", body: "\(share.name) successfully connected.")
                 } else {
-                    // If host unreachable, show disconnected instead of error
-                    let errMsg = errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let isUnreachable = errMsg.contains("No route to host") ||
-                                       errMsg.contains("Connection refused") ||
-                                       errMsg.contains("Network is unreachable") ||
-                                       errMsg.contains("timed out") ||
-                                       task.terminationStatus == 64
-                    if isUnreachable {
-                        self.shares[idx].status = .disconnected
-                        self.shares[idx].lastError = nil
-                    } else {
-                        self.shares[idx].status = .error
-                        self.shares[idx].lastError = errMsg.isEmpty ? "Connection failed (Code \(task.terminationStatus))" : errMsg
+                    let current = self.failCount[share.id] ?? 0
+                    let candidates = self.hostCandidates(for: share.host)
+                    let maxCount = (candidates.count * 2) - 1
+                    if current < maxCount {
+                        self.failCount[share.id] = current + 1
                     }
+                    self.shares[idx].status = .disconnected
+                    self.shares[idx].lastError = nil
                 }
                 self.updateAppIcon()
             }
         } catch {
-            setError(for: share, message: error.localizedDescription)
+            DispatchQueue.main.async {
+                guard let idx = self.shares.firstIndex(where: { $0.id == share.id }) else { return }
+                self.shares[idx].status = .error
+                self.shares[idx].lastError = error.localizedDescription
+                self.updateAppIcon()
+            }
         }
     }
     
     func unmount(_ share: SMBShare) {
         manuallyDisconnected.insert(share.id)
-        monitorQueue.async {
+        failCount[share.id] = nil
+        
+        mountQueue.async {
             let task = Process()
             task.launchPath = "/sbin/umount"
             task.arguments = [share.resolvedMountPoint]
@@ -302,6 +370,7 @@ class ShareManager: ObservableObject {
     func removeShare(_ share: SMBShare) {
         if isMounted(share) { unmount(share) }
         manuallyDisconnected.remove(share.id)
+        failCount[share.id] = nil
         KeychainHelper.shared.deletePassword(for: share.id)
         shares.removeAll { $0.id == share.id }
         saveShares()
