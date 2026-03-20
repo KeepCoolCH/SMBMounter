@@ -46,6 +46,8 @@ Version **1.0** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/raw/refs/heads/main/SMBMounter.zip)
+
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  
 3. Launch the app
