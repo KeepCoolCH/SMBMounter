@@ -1,4 +1,4 @@
-# 🧩 SMBMounter for macOS
+# ![App Icon](https://online.kevintobler.ch/projectimages/SMBMounter.png) SMBMounter for macOS
 
 **Automatically mount, reconnect, and manage SMB network drives** – directly from your macOS menu bar.  
 Version **1.0** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
