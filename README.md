@@ -2,6 +2,8 @@
 
 # SMBMounter for macOS
 
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.0)
+
 **Automatically mount, reconnect, and manage SMB network drives** – directly from your macOS menu bar.  
 Version **1.0** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
