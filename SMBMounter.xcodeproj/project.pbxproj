@@ -11,7 +11,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		FA0B7ADC2F53243200BE0C89 /* SMBMounter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = SMBMounter.app; path = "/Users/KeepCool/Documents/XCode Projects/SMBMounter/SMBMounter/build/Debug/SMBMounter.app"; sourceTree = "<absolute>"; };
 		FA99EBBF2F8AE9EE0096FD67 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -64,7 +63,7 @@
 			packageProductDependencies = (
 			);
 			productName = SMBMounter;
-			productReference = FA0B7ADC2F53243200BE0C89 /* SMBMounter.app */;
+			productReference = FA99EBD62F8AECED0096FD67 /* SMBMounter.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

@@ -2,16 +2,24 @@
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.0)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.1)
 
 **Automatically mount, reconnect, and manage SMB network drives** – directly from your macOS menu bar.  
-Version **1.0** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.1** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.1**
+  - 🔧 Reworked mount pipeline for higher reliability (clean preflight -> mount -> verify flow)
+  - ⏱ Finder mount now runs with hard timeout handling to prevent hanging mount jobs
+  - 🧵 Mount attempts are processed sequentially to avoid race conditions between parallel connects
+  - 🌐 Improved host resolution with stable SMB reachability checks and Bonjour/local fallback logic
+  - 🔁 Added extra retry passes after a failed/disconnected attempt for better wake/reconnect behavior
+  - 🛑 Manual disconnect now cancels pending retry/mount flow for that share more consistently
+  - 🙈 No more Finder error popups on mount timeout (timeouts are handled silently in-app)
 - **1.0**
   - 💾 Auto-mount saved network shares at login  
   - 🔁 Auto-Reconnect after connection loss or sleep/wake events  
@@ -50,7 +58,7 @@ Version **1.0** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.0)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.1)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  
