@@ -2,16 +2,23 @@
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.1)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.2)
 
-**Automatically mount, reconnect, and manage SMB network drives** – directly from your macOS menu bar.  
-Version **1.1** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+**Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
+Version **1.2** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.2**
+  - 🌐 Added **WebDAV** support alongside SMB
+  - 🔐 WebDAV supports **HTTP/HTTPS** selection with automatic default ports
+  - 🔌 Added configurable WebDAV port field for custom NAS/server setups
+  - 🧭 WebDAV host handling supports plain hosts like `server.local`
+  - 🔁 WebDAV connections use the same preflight, mount verification, disconnect, and auto-reconnect flow as SMB
+  - 🧰 Improved menu bar icon fallback for menu bar manager compatibility
 - **1.1**
   - 🔧 Reworked mount pipeline for higher reliability (clean preflight -> mount -> verify flow)
   - ⏱ Finder mount now runs with hard timeout handling to prevent hanging mount jobs
@@ -33,6 +40,8 @@ Version **1.1** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 - 🧠 **Auto-Reconnect** on network loss or after system sleep  
 - 🔒 **Keychain Integration** – credentials are stored securely  
+- 🌐 **SMB + WebDAV Support** – mount classic SMB shares and WebDAV targets  
+- 🔐 **HTTP/HTTPS WebDAV Options** – choose scheme and custom port per connection  
 - 💡 **Status Monitoring** – shows mount state in the menu bar  
 - 💾 **Auto-Mount at Login** – keep all shares ready automatically  
 - 🧩 **SwiftUI Interface** optimized for macOS Sonoma 14.6+ 
@@ -50,7 +59,7 @@ Version **1.1** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## ⚙️ How It Works
 
-1. Add your **network targets** (SMB)  
+1. Add your **network targets** (SMB or WebDAV)  
 2. Credentials are stored securely in the **macOS Keychain**   
 3. The **menu bar** shows live status for all connections  
 
@@ -58,7 +67,7 @@ Version **1.1** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.1)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.2)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  

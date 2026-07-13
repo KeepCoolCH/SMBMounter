@@ -32,7 +32,7 @@ class ShareManager: ObservableObject {
 
     private let requiredStableSuccesses = 2
     private let bonjourCheckCycles = 4
-    private let smbReachabilityTimeout: TimeInterval = 2.0
+    private let connectionReachabilityTimeout: TimeInterval = 2.0
     private let bonjourQueryTimeout: TimeInterval = 2.0
 
     private let finderAppleScriptTimeoutSeconds = 2.0
@@ -45,7 +45,7 @@ class ShareManager: ObservableObject {
     private var startupReconnectScheduled = false
 
     private var hostProbeWindow: TimeInterval {
-        let reachabilityBudget = Double(requiredStableSuccesses) * ((smbReachabilityTimeout * 2.0) + shortRetryInterval)
+        let reachabilityBudget = Double(requiredStableSuccesses) * ((connectionReachabilityTimeout * 2.0) + shortRetryInterval)
         let bonjourBudget = Double(bonjourCheckCycles) * (bonjourQueryTimeout + shortRetryInterval)
         return max(8.0, reachabilityBudget + bonjourBudget)
     }
@@ -360,14 +360,35 @@ class ShareManager: ObservableObject {
         return shouldKeepRetrying(share)
     }
 
-    private func isSMBReachable(host: String, timeout: TimeInterval? = nil) -> Bool {
-        let effectiveTimeout = timeout ?? smbReachabilityTimeout
-        guard let port = NWEndpoint.Port(rawValue: 445) else { return false }
+    private func webDAVHostAndPort(for share: SMBShare) -> (host: String, port: UInt16) {
+        webDAVHostAndPort(from: share.host, scheme: share.webDAVScheme, configuredPort: share.port)
+    }
+
+    private func webDAVHostAndPort(from host: String, scheme: WebDAVScheme, configuredPort: Int = 0) -> (host: String, port: UInt16) {
+        var normalized = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalized.contains("://") {
+            return (normalized, UInt16(configuredPort > 0 ? configuredPort : scheme.defaultPort))
+        }
+
+        guard let components = URLComponents(string: normalized),
+              let parsedHost = components.host else {
+            normalized = normalized
+                .replacingOccurrences(of: "https://", with: "")
+                .replacingOccurrences(of: "http://", with: "")
+            return (normalized, UInt16(configuredPort > 0 ? configuredPort : scheme.defaultPort))
+        }
+
+        return (parsedHost, UInt16(configuredPort > 0 ? configuredPort : (components.port ?? scheme.defaultPort)))
+    }
+
+    private func isTCPReachable(host: String, port: UInt16, timeout: TimeInterval? = nil) -> Bool {
+        let effectiveTimeout = timeout ?? connectionReachabilityTimeout
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return false }
 
         let semaphore = DispatchSemaphore(value: 0)
         var reachable = false
 
-        let connection = NWConnection(host: NWEndpoint.Host(host), port: port, using: .tcp)
+        let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
         connection.stateUpdateHandler = { state in
             switch state {
             case .ready:
@@ -384,6 +405,15 @@ class ShareManager: ObservableObject {
         _ = semaphore.wait(timeout: .now() + effectiveTimeout)
         connection.cancel()
         return reachable
+    }
+
+    private func isSMBReachable(host: String, timeout: TimeInterval? = nil) -> Bool {
+        isTCPReachable(host: host, port: 445, timeout: timeout)
+    }
+
+    private func isWebDAVReachable(share: SMBShare, timeout: TimeInterval? = nil) -> Bool {
+        let endpoint = webDAVHostAndPort(for: share)
+        return isTCPReachable(host: endpoint.host, port: endpoint.port, timeout: timeout)
     }
 
     private func isBonjourAvailable(for serverName: String) -> Bool {
@@ -413,11 +443,20 @@ class ShareManager: ObservableObject {
         return found
     }
 
+    private func isReachable(host: String, for share: SMBShare) -> Bool {
+        switch share.connectionProtocol {
+        case .smb:
+            return isSMBReachable(host: host)
+        case .webdav:
+            return isWebDAVReachable(share: share)
+        }
+    }
+
     private func stableReachability(for hosts: [String], share: SMBShare, until: Date) -> [String: Int] {
         var scores: [String: Int] = [:]
         while shouldKeepRetrying(share) && Date() < until {
             for host in hosts {
-                if isSMBReachable(host: host) {
+                if isReachable(host: host, for: share) {
                     scores[host.lowercased(), default: 0] += 1
                 }
             }
@@ -452,6 +491,12 @@ class ShareManager: ObservableObject {
     }
 
     private func chooseMountHost(for share: SMBShare, until: Date) -> String? {
+        if share.connectionProtocol == .webdav {
+            let host = share.host.trimmingCharacters(in: .whitespacesAndNewlines)
+            let scores = stableReachability(for: [host], share: share, until: until)
+            return (scores[host.lowercased()] ?? 0) >= requiredStableSuccesses ? host : nil
+        }
+
         let hostType = configuredHostType(for: share.host)
 
         switch hostType {
@@ -494,7 +539,7 @@ class ShareManager: ObservableObject {
 
         var successCount = 0
         while shouldKeepRetrying(share) && Date() < until {
-            if isSMBReachable(host: selectedHost) {
+            if isReachable(host: selectedHost, for: share) {
                 successCount += 1
                 if successCount >= requiredStableSuccesses {
                     return true
@@ -507,7 +552,7 @@ class ShareManager: ObservableObject {
         return false
     }
 
-    private func waitForSMBAvailability(for share: SMBShare) -> String? {
+    private func waitForConnectionAvailability(for share: SMBShare) -> String? {
         guard shouldKeepRetrying(share) else { return nil }
 
         while shouldKeepRetrying(share) {
@@ -537,7 +582,9 @@ class ShareManager: ObservableObject {
 
     func isMounted(_ share: SMBShare) -> Bool {
         let baseHost: String
-        if share.host.hasSuffix(".local") && !share.host.contains("._smb._tcp") {
+        if share.connectionProtocol == .webdav {
+            baseHost = webDAVHostAndPort(for: share).host.lowercased()
+        } else if share.host.hasSuffix(".local") && !share.host.contains("._smb._tcp") {
             baseHost = String(share.host.dropLast(6)).lowercased()
         } else if share.host.contains("._smb._tcp") {
             baseHost = (share.host.components(separatedBy: "._smb._tcp").first ?? share.host).lowercased()
@@ -554,12 +601,21 @@ class ShareManager: ObservableObject {
         for vol in vols {
             if let r = try? vol.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
                 let s = r.absoluteString.lowercased()
-                if s.contains("smb") && s.contains(baseHost) && s.contains(shareName) {
+                if remountURLString(s, matches: share.connectionProtocol) && s.contains(baseHost) && s.contains(shareName) {
                     return true
                 }
             }
         }
         return false
+    }
+
+    private func remountURLString(_ urlString: String, matches shareProtocol: ShareProtocol) -> Bool {
+        switch shareProtocol {
+        case .smb:
+            return urlString.contains("smb")
+        case .webdav:
+            return urlString.contains("http") || urlString.contains("webdav")
+        }
     }
 
     func updateMountStatuses() {
@@ -639,6 +695,43 @@ class ShareManager: ObservableObject {
 
     // MARK: - Mount / Unmount
 
+    private func mountURLScheme(for share: SMBShare, host: String) -> String {
+        switch share.connectionProtocol {
+        case .smb:
+            return "smb"
+        case .webdav:
+            return share.webDAVScheme.urlScheme
+        }
+    }
+
+    private func mountURLHost(for share: SMBShare, selectedHost: String) -> String {
+        guard share.connectionProtocol == .webdav else {
+            return selectedHost
+                .replacingOccurrences(of: "https://", with: "")
+                .replacingOccurrences(of: "http://", with: "")
+        }
+
+        guard let components = URLComponents(string: selectedHost),
+              components.scheme != nil,
+              let host = components.host else {
+            let hostWithoutScheme = selectedHost
+                .replacingOccurrences(of: "https://", with: "")
+                .replacingOccurrences(of: "http://", with: "")
+            if share.port > 0 {
+                return "\(hostWithoutScheme):\(share.port)"
+            }
+            return hostWithoutScheme
+        }
+
+        if let port = components.port {
+            return "\(host):\(share.port > 0 ? share.port : port)"
+        }
+        if share.connectionProtocol == .webdav, share.port > 0 {
+            return "\(host):\(share.port)"
+        }
+        return host
+    }
+
     func mount(_ share: SMBShare) {
         clearManuallyDisconnected(share.id)
 
@@ -660,7 +753,7 @@ class ShareManager: ObservableObject {
         guard let share = shares.first(where: { $0.id == shareID }) else { return }
         guard shouldKeepRetrying(share) else { return }
 
-        guard let host = waitForSMBAvailability(for: share) else {
+        guard let host = waitForConnectionAvailability(for: share) else {
             DispatchQueue.main.async {
                 guard let idx = self.shares.firstIndex(where: { $0.id == shareID }) else { return }
                 if self.isManuallyDisconnected(shareID) {
@@ -670,7 +763,12 @@ class ShareManager: ObservableObject {
                 } else {
                     self.failCount[shareID, default: 0] += 1
                     self.shares[idx].status = .disconnected
-                    self.shares[idx].lastError = "Host aktuell nicht erreichbar (SMB Port 445)."
+                    switch self.shares[idx].connectionProtocol {
+                    case .smb:
+                        self.shares[idx].lastError = "Host aktuell nicht erreichbar (SMB Port 445)."
+                    case .webdav:
+                        self.shares[idx].lastError = "Host aktuell nicht erreichbar (WebDAV Port 80/443)."
+                    }
                     self.scheduleOneExtraRetryIfNeeded(for: shareID)
                 }
                 self.updateAppIcon()
@@ -683,12 +781,12 @@ class ShareManager: ObservableObject {
         if !share.username.isEmpty && !password.isEmpty {
             let encodedPass = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
             let encodedUser = share.username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? share.username
-            urlString = "smb://\(encodedUser):\(encodedPass)@\(host)/\(share.shareName)"
+            urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser):\(encodedPass)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
         } else if !share.username.isEmpty {
             let encodedUser = share.username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? share.username
-            urlString = "smb://\(encodedUser)@\(host)/\(share.shareName)"
+            urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
         } else {
-            urlString = "smb://\(host)/\(share.shareName)"
+            urlString = "\(mountURLScheme(for: share, host: host))://\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
         }
 
         guard shouldKeepRetrying(share) else { return }

@@ -25,10 +25,38 @@ enum MountStatus: String, Codable {
     }
 }
 
+enum ShareProtocol: String, Codable, CaseIterable, Identifiable {
+    case smb = "SMB"
+    case webdav = "WebDAV"
+
+    var id: String { rawValue }
+
+    var urlScheme: String {
+        switch self {
+        case .smb: return "smb"
+        case .webdav: return "https"
+        }
+    }
+
+    var displayName: String { rawValue }
+}
+
+enum WebDAVScheme: String, Codable, CaseIterable, Identifiable {
+    case https = "HTTPS"
+    case http = "HTTP"
+
+    var id: String { rawValue }
+    var urlScheme: String { rawValue.lowercased() }
+    var defaultPort: Int { self == .http ? 80 : 443 }
+}
+
 struct SMBShare: Identifiable, Codable {
     var id: UUID = UUID()
     var name: String
+    var connectionProtocol: ShareProtocol = .smb
+    var webDAVScheme: WebDAVScheme = .https
     var host: String
+    var port: Int = 0
     var shareName: String
     var username: String
     var mountPoint: String
@@ -37,15 +65,37 @@ struct SMBShare: Identifiable, Codable {
     var lastError: String? = nil
     var lastConnected: Date? = nil
     
-    var smbURL: String {
-        "smb://\(host)/\(shareName)"
+    var connectionURL: String {
+        "\(displayScheme)://\(displayHost)/\(shareName)"
     }
     
-    var smbURLWithUser: String {
+    var connectionURLWithUser: String {
         if username.isEmpty {
-            return "smb://\(host)/\(shareName)"
+            return "\(displayScheme)://\(displayHost)/\(shareName)"
         }
-        return "smb://\(username)@\(host)/\(shareName)"
+        return "\(displayScheme)://\(username)@\(displayHost)/\(shareName)"
+    }
+
+    private var displayScheme: String {
+        connectionProtocol == .webdav ? webDAVScheme.urlScheme : connectionProtocol.urlScheme
+    }
+
+    private var displayHost: String {
+        guard connectionProtocol == .webdav,
+              let components = URLComponents(string: host),
+              components.scheme != nil,
+              let parsedHost = components.host else {
+            if connectionProtocol == .webdav, port > 0 {
+                return "\(host):\(port)"
+            }
+            return host
+        }
+
+        let resolvedPort = port > 0 ? port : components.port
+        if let resolvedPort {
+            return "\(parsedHost):\(resolvedPort)"
+        }
+        return parsedHost
     }
     
     var resolvedMountPoint: String {
@@ -56,14 +106,17 @@ struct SMBShare: Identifiable, Codable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, name, host, shareName, username, mountPoint, autoMount
+        case id, name, connectionProtocol, webDAVScheme, host, port, shareName, username, mountPoint, autoMount
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
+        connectionProtocol = try container.decodeIfPresent(ShareProtocol.self, forKey: .connectionProtocol) ?? .smb
+        webDAVScheme = try container.decodeIfPresent(WebDAVScheme.self, forKey: .webDAVScheme) ?? .https
         host = try container.decode(String.self, forKey: .host)
+        port = try container.decodeIfPresent(Int.self, forKey: .port) ?? 0
         shareName = try container.decode(String.self, forKey: .shareName)
         username = try container.decode(String.self, forKey: .username)
         mountPoint = try container.decode(String.self, forKey: .mountPoint)
@@ -71,9 +124,12 @@ struct SMBShare: Identifiable, Codable {
         status = .disconnected
     }
     
-    init(name: String, host: String, shareName: String, username: String = "", mountPoint: String = "", autoMount: Bool = true) {
+    init(name: String, connectionProtocol: ShareProtocol = .smb, webDAVScheme: WebDAVScheme = .https, host: String, port: Int = 0, shareName: String, username: String = "", mountPoint: String = "", autoMount: Bool = true) {
         self.name = name
+        self.connectionProtocol = connectionProtocol
+        self.webDAVScheme = webDAVScheme
         self.host = host
+        self.port = port
         self.shareName = shareName
         self.username = username
         self.mountPoint = mountPoint

@@ -21,7 +21,7 @@ struct ShareRowView: View {
                     }
                 }
                 
-                Text(share.smbURL)
+                Text(share.connectionURL)
                     .font(.caption)
                     .foregroundColor(.secondary)
                 

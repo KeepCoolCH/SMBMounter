@@ -109,7 +109,6 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            manager.requestNotificationPermission()
             manager.updateMountStatuses()
         }
     }
