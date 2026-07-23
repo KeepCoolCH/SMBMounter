@@ -1,17 +1,22 @@
-![Hero Screenshot](https://online.kevintobler.ch/projectimages/SMBMounter-Banner.jpg)
+![Hero Screenshot](images/SMBMounter-Banner.jpg)
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.2)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.3)
 
 **Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
-Version **1.2** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.3** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.3**
+  - ✅ Fixed mounted-volume detection for share names containing spaces, e.g. `Emby Media`
+  - 🔎 Mount status checks now handle percent-encoded remount URLs such as `Emby%20Media`
+  - 🔐 Improved SMB/WebDAV credential popup handling by allowing longer interactive Finder mount sessions
+  - ⚡ Interactive mount sessions now stop early as soon as the share is detected as mounted
 - **1.2**
   - 🌐 Added **WebDAV** support alongside SMB
   - 🔐 WebDAV supports **HTTP/HTTPS** selection with automatic default ports
@@ -51,9 +56,9 @@ Version **1.2** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 📸 Screenshots
 
-![Screenshot](https://online.kevintobler.ch/projectimages/SMBMounterV1-addshare.png)  
-![Screenshot](https://online.kevintobler.ch/projectimages/SMBMounterV1-editor.png)  
-![Screenshot](https://online.kevintobler.ch/projectimages/SMBMounterV1-overview.png)  
+![Screenshot](images/SMBMounterV1-addshare.png)  
+![Screenshot](images/SMBMounterV1-editor.png)  
+![Screenshot](images/SMBMounterV1-overview.png)  
 
 ---
 
@@ -67,7 +72,7 @@ Version **1.2** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.2)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.3)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  

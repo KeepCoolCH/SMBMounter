@@ -36,7 +36,9 @@ class ShareManager: ObservableObject {
     private let bonjourQueryTimeout: TimeInterval = 2.0
 
     private let finderAppleScriptTimeoutSeconds = 2.0
+    private let interactiveFinderAppleScriptTimeoutSeconds = 120.0
     private let finderExecutionTimeout: TimeInterval = 10.0
+    private let interactiveFinderExecutionTimeout: TimeInterval = 125.0
     private let postMountVerifyTimeout: TimeInterval = 5.0
 
     private let postBootAutoConnectDelay: TimeInterval = 15.0
@@ -601,7 +603,10 @@ class ShareManager: ObservableObject {
         for vol in vols {
             if let r = try? vol.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
                 let s = r.absoluteString.lowercased()
-                if remountURLString(s, matches: share.connectionProtocol) && s.contains(baseHost) && s.contains(shareName) {
+                let decoded = s.removingPercentEncoding ?? s
+                if remountURLString(s, matches: share.connectionProtocol)
+                    && decoded.contains(baseHost)
+                    && decoded.contains(shareName) {
                     return true
                 }
             }
@@ -646,11 +651,13 @@ class ShareManager: ObservableObject {
 
     // MARK: - Finder Mount
 
-    private func runFinderMount(urlString: String) {
+    private func runFinderMount(urlString: String, allowsUserInteraction: Bool, isMounted: () -> Bool) {
+        let appleScriptTimeout = allowsUserInteraction ? interactiveFinderAppleScriptTimeoutSeconds : finderAppleScriptTimeoutSeconds
+        let executionTimeout = allowsUserInteraction ? interactiveFinderExecutionTimeout : finderExecutionTimeout
         let script = """
         try
             tell application "Finder"
-                with timeout of \(finderAppleScriptTimeoutSeconds) seconds
+                with timeout of \(appleScriptTimeout) seconds
                     mount volume "\(urlString)"
                 end timeout
             end tell
@@ -667,8 +674,12 @@ class ShareManager: ObservableObject {
         do {
             try task.run()
 
-            let deadline = Date().addingTimeInterval(finderExecutionTimeout)
+            let deadline = Date().addingTimeInterval(executionTimeout)
             while task.isRunning && Date() < deadline {
+                if isMounted() {
+                    task.terminate()
+                    break
+                }
                 Thread.sleep(forTimeInterval: 0.1)
             }
 
@@ -790,7 +801,10 @@ class ShareManager: ObservableObject {
         }
 
         guard shouldKeepRetrying(share) else { return }
-        runFinderMount(urlString: urlString)
+        let allowsUserInteraction = share.username.isEmpty || password.isEmpty
+        runFinderMount(urlString: urlString, allowsUserInteraction: allowsUserInteraction) {
+            self.isMounted(share)
+        }
 
         let mounted = waitUntilMounted(share, timeout: postMountVerifyTimeout)
 
