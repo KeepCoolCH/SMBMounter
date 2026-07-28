@@ -602,11 +602,7 @@ class ShareManager: ObservableObject {
 
         for vol in vols {
             if let r = try? vol.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
-                let s = r.absoluteString.lowercased()
-                let decoded = s.removingPercentEncoding ?? s
-                if remountURLString(s, matches: share.connectionProtocol)
-                    && decoded.contains(baseHost)
-                    && decoded.contains(shareName) {
+                if remountURL(r, matches: share.connectionProtocol, host: baseHost, shareName: shareName) {
                     return true
                 }
             }
@@ -614,13 +610,56 @@ class ShareManager: ObservableObject {
         return false
     }
 
-    private func remountURLString(_ urlString: String, matches shareProtocol: ShareProtocol) -> Bool {
+    private func remountURL(_ url: URL, matches shareProtocol: ShareProtocol, host: String, shareName: String) -> Bool {
+        guard remountScheme(url.scheme, matches: shareProtocol),
+              normalizedRemountHost(url.host) == normalizedRemountHost(host) else {
+            return false
+        }
+
         switch shareProtocol {
         case .smb:
-            return urlString.contains("smb")
+            return firstPathComponent(from: url) == shareName
         case .webdav:
-            return urlString.contains("http") || urlString.contains("webdav")
+            return normalizedPath(url.path) == normalizedPath(shareName)
         }
+    }
+
+    private func remountScheme(_ scheme: String?, matches shareProtocol: ShareProtocol) -> Bool {
+        let normalized = scheme?.lowercased() ?? ""
+        switch shareProtocol {
+        case .smb:
+            return normalized == "smb"
+        case .webdav:
+            return normalized == "http" || normalized == "https" || normalized == "webdav"
+        }
+    }
+
+    private func normalizedRemountHost(_ host: String?) -> String {
+        var normalized = (host ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalized.contains("._smb._tcp") {
+            normalized = normalized.components(separatedBy: "._smb._tcp").first ?? normalized
+        }
+        if normalized.hasSuffix(".local") {
+            normalized = String(normalized.dropLast(6))
+        }
+        return normalized
+    }
+
+    private func firstPathComponent(from url: URL) -> String {
+        let components = url.pathComponents
+            .filter { $0 != "/" }
+            .map { ($0.removingPercentEncoding ?? $0).lowercased() }
+        return components.first ?? ""
+    }
+
+    private func normalizedPath(_ path: String) -> String {
+        let decoded = path.removingPercentEncoding ?? path
+        return decoded
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
     }
 
     func updateMountStatuses() {

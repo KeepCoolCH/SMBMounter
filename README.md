@@ -5,13 +5,17 @@
 [![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.3)
 
 **Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
-Version **1.3** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.4** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.4**
+  - ✅ Fixed mounted-volume detection for shares whose names are substrings of existing volumes
+  - 🔎 Mount status checks now compare remount URL host and share path exactly instead of using substring matching
+  - 🧭 Shares with the same name on different servers can now be detected independently
 - **1.3**
   - ✅ Fixed mounted-volume detection for share names containing spaces, e.g. `Emby Media`
   - 🔎 Mount status checks now handle percent-encoded remount URLs such as `Emby%20Media`

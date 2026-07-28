@@ -44,7 +44,7 @@ struct ContentView: View {
                     Text("No shares configured")
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    Text("Click + to add an SMB share")
+                    Text("Click + to add an SMB/WebDAV share")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
