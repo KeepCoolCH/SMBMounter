@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AppKit
+import SwiftUI
 import Network
 import UserNotifications
 
@@ -782,6 +783,12 @@ class ShareManager: ObservableObject {
         return host
     }
 
+    private func percentEncodedCredential(_ value: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
     func mount(_ share: SMBShare) {
         clearManuallyDisconnected(share.id)
 
@@ -829,11 +836,11 @@ class ShareManager: ObservableObject {
         let password = KeychainHelper.shared.getPassword(for: shareID) ?? ""
         let urlString: String
         if !share.username.isEmpty && !password.isEmpty {
-            let encodedPass = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
-            let encodedUser = share.username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? share.username
+            let encodedPass = percentEncodedCredential(password)
+            let encodedUser = percentEncodedCredential(share.username)
             urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser):\(encodedPass)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
         } else if !share.username.isEmpty {
-            let encodedUser = share.username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? share.username
+            let encodedUser = percentEncodedCredential(share.username)
             urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
         } else {
             urlString = "\(mountURLScheme(for: share, host: host))://\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
@@ -951,6 +958,11 @@ class ShareManager: ObservableObject {
         failCount[share.id] = nil
         KeychainHelper.shared.deletePassword(for: share.id)
         shares.removeAll { $0.id == share.id }
+        saveShares()
+    }
+
+    func moveShares(from source: IndexSet, to destination: Int) {
+        shares.move(fromOffsets: source, toOffset: destination)
         saveShares()
     }
 

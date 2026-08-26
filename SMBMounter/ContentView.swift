@@ -73,6 +73,9 @@ struct ContentView: View {
                     .onDelete { indices in
                         indices.forEach { manager.removeShare(manager.shares[$0]) }
                     }
+                    .onMove { source, destination in
+                        manager.moveShares(from: source, to: destination)
+                    }
                 }
                 .listStyle(.plain)
             }

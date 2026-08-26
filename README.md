@@ -2,16 +2,20 @@
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.3)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.5)
 
 **Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
-Version **1.4** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.5** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.5**
+  - 🔐 Added support for UPN-style usernames such as `abc@mydomain.local`
+  - 🔗 SMB/WebDAV credentials are now percent-encoded correctly when creating Finder mount URLs
+  - ↕️ Mount entries can now be reordered via drag and drop, with the chosen order saved automatically
 - **1.4**
   - ✅ Fixed mounted-volume detection for shares whose names are substrings of existing volumes
   - 🔎 Mount status checks now compare remount URL host and share path exactly instead of using substring matching
@@ -76,7 +80,7 @@ Version **1.4** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.3)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.5)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  
