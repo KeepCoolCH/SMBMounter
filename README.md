@@ -17,7 +17,7 @@ Auto-mount authenticates to the configured server using macOS network services. 
 
 ### 🆕 Version 1.x
 - **1.6**
-  - 🔒 Prevented AppleScript injection by escaping mount URLs and validating server addresses before mounting
+  - 🔒 Prevented AppleScript injection by escaping mount URLs and validating server addresses before mounting (thanks to daveconf for the report)
   - 🔗 Mount URLs now use structured URL components and correctly encode share paths and credentials
   - 🛡️ Mount scripts are now passed through a private input pipe, keeping passwords out of process arguments
   - 🔐 Unified password storage, lookup, and deletion in the macOS Data Protection Keychain, with verified migration of existing login-keychain passwords
