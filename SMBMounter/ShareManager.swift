@@ -584,6 +584,10 @@ class ShareManager: ObservableObject {
     // MARK: - Mount Status
 
     func isMounted(_ share: SMBShare) -> Bool {
+        mountedVolumeURL(for: share) != nil
+    }
+
+    func mountedVolumeURL(for share: SMBShare) -> URL? {
         let baseHost: String
         if share.connectionProtocol == .webdav {
             baseHost = webDAVHostAndPort(for: share).host.lowercased()
@@ -604,11 +608,11 @@ class ShareManager: ObservableObject {
         for vol in vols {
             if let r = try? vol.resourceValues(forKeys: [.volumeURLForRemountingKey]).volumeURLForRemounting {
                 if remountURL(r, matches: share.connectionProtocol, host: baseHost, shareName: shareName) {
-                    return true
+                    return vol
                 }
             }
         }
-        return false
+        return nil
     }
 
     private func remountURL(_ url: URL, matches shareProtocol: ShareProtocol, host: String, shareName: String) -> Bool {
@@ -698,7 +702,7 @@ class ShareManager: ObservableObject {
         try
             tell application "Finder"
                 with timeout of \(appleScriptTimeout) seconds
-                    mount volume "\(urlString)"
+                    mount volume "\(urlString.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\n", with: "\\n"))"
                 end timeout
             end tell
         on error
@@ -707,12 +711,16 @@ class ShareManager: ObservableObject {
 
         let task = Process()
         task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", script]
-        task.standardError = Pipe()
-        task.standardOutput = Pipe()
+        task.arguments = ["-"]
+        let input = Pipe()
+        task.standardInput = input
+        task.standardError = FileHandle.nullDevice
+        task.standardOutput = FileHandle.nullDevice
 
         do {
             try task.run()
+            try input.fileHandleForWriting.write(contentsOf: Data(script.utf8))
+            try input.fileHandleForWriting.close()
 
             let deadline = Date().addingTimeInterval(executionTimeout)
             while task.isRunning && Date() < deadline {
@@ -729,6 +737,11 @@ class ShareManager: ObservableObject {
 
             task.waitUntilExit()
         } catch {
+            try? input.fileHandleForWriting.close()
+            if task.isRunning {
+                task.terminate()
+                task.waitUntilExit()
+            }
             return
         }
     }
@@ -834,16 +847,27 @@ class ShareManager: ObservableObject {
         }
 
         let password = KeychainHelper.shared.getPassword(for: shareID) ?? ""
-        let urlString: String
-        if !share.username.isEmpty && !password.isEmpty {
-            let encodedPass = percentEncodedCredential(password)
-            let encodedUser = percentEncodedCredential(share.username)
-            urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser):\(encodedPass)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
-        } else if !share.username.isEmpty {
-            let encodedUser = percentEncodedCredential(share.username)
-            urlString = "\(mountURLScheme(for: share, host: host))://\(encodedUser)@\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
-        } else {
-            urlString = "\(mountURLScheme(for: share, host: host))://\(mountURLHost(for: share, selectedHost: host))/\(share.shareName)"
+        let authority = "\(mountURLScheme(for: share, host: host))://\(mountURLHost(for: share, selectedHost: host))"
+        guard var components = URLComponents(string: authority),
+              let parsedHost = components.host, !parsedHost.isEmpty,
+              components.user == nil, components.password == nil,
+              components.path.isEmpty, components.query == nil, components.fragment == nil else {
+            setError(for: share, message: "Invalid server address.")
+            return
+        }
+        var pathCharacters = CharacterSet.urlPathAllowed
+        pathCharacters.remove(charactersIn: "%?#")
+        let decodedPath = share.shareName.removingPercentEncoding ?? share.shareName
+        components.percentEncodedPath = "/" + (decodedPath.addingPercentEncoding(withAllowedCharacters: pathCharacters) ?? "")
+        if !share.username.isEmpty {
+            components.percentEncodedUser = percentEncodedCredential(share.username)
+            if !password.isEmpty {
+                components.percentEncodedPassword = percentEncodedCredential(password)
+            }
+        }
+        guard let urlString = components.url?.absoluteString else {
+            setError(for: share, message: "Invalid share address.")
+            return
         }
 
         guard shouldKeepRetrying(share) else { return }
@@ -891,21 +915,24 @@ class ShareManager: ObservableObject {
 
         unmountQueue.async {
             for _ in 0..<6 {
-                if !self.isMounted(share) {
-                    break
-                }
+                guard let volumeURL = self.mountedVolumeURL(for: share) else { break }
                 let task = Process()
                 task.launchPath = "/sbin/umount"
-                task.arguments = [share.resolvedMountPoint]
-                try? task.run()
-                task.waitUntilExit()
+                task.arguments = [volumeURL.path]
+                do {
+                    try task.run()
+                    task.waitUntilExit()
+                } catch {
+                    break
+                }
                 Thread.sleep(forTimeInterval: 0.3)
             }
 
             DispatchQueue.main.async {
                 guard let idx = self.shares.firstIndex(where: { $0.id == share.id }) else { return }
-                self.shares[idx].status = .disconnected
-                self.shares[idx].lastError = nil
+                let stillMounted = self.isMounted(share)
+                self.shares[idx].status = stillMounted ? .mounted : .disconnected
+                self.shares[idx].lastError = stillMounted ? "The volume could not be disconnected. It may be in use." : nil
                 self.updateAppIcon()
             }
         }

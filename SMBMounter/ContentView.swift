@@ -130,6 +130,7 @@ struct ContentView: View {
     }
     
     func openInFinder(_ share: SMBShare) {
-        NSWorkspace.shared.open(URL(fileURLWithPath: share.resolvedMountPoint))
+        guard let volumeURL = manager.mountedVolumeURL(for: share) else { return }
+        NSWorkspace.shared.open(volumeURL)
     }
 }

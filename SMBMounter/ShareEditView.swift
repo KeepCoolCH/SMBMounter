@@ -106,6 +106,12 @@ struct ShareEditView: View {
                             TextField("443", text: $port)
                                 .multilineTextAlignment(.trailing)
                         }
+                        if webDAVScheme == .http {
+                            Label("HTTP is unencrypted. Use HTTPS on untrusted networks.", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     
                     HStack {

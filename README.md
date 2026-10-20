@@ -2,16 +2,30 @@
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.5)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.6)
 
 **Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
-Version **1.5** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.6** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
+
+## Network Security
+
+Auto-mount authenticates to the configured server using macOS network services. Bonjour and DNS discovery do not verify server identity. On untrusted networks, disable Auto-Mount or use a trusted VPN and server authentication policies appropriate to your environment. Prefer HTTPS for WebDAV; HTTP does not provide transport encryption. Reconnect timing does not protect against server impersonation.
 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.6**
+  - 🔒 Prevented AppleScript injection by escaping mount URLs and validating server addresses before mounting
+  - 🔗 Mount URLs now use structured URL components and correctly encode share paths and credentials
+  - 🛡️ Mount scripts are now passed through a private input pipe, keeping passwords out of process arguments
+  - 🔐 Unified password storage, lookup, and deletion in the macOS Data Protection Keychain, with verified migration of existing login-keychain passwords
+  - ⚠️ Added a warning for unencrypted WebDAV HTTP connections and documented server-impersonation risks on untrusted networks
+  - 🎯 Disconnect and Open in Finder now use the actual mounted-volume path identified by server and share, fixing incorrect actions on identically named shares
+  - ✅ Disconnect now verifies the resulting mount status instead of always marking the share as disconnected
+  - 📦 Added Finder automation entitlements and a usage description for hardened-runtime distribution
+  - 🧹 Excluded the source Info.plist and entitlements file from bundle resources and removed an ineffective sandbox exception from Info.plist
 - **1.5**
   - 🔐 Added support for UPN-style usernames such as `abc@mydomain.local`
   - 🔗 SMB/WebDAV credentials are now percent-encoded correctly when creating Finder mount URLs
@@ -80,7 +94,7 @@ Version **1.5** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](http
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.5)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.6)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  

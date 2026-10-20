@@ -14,9 +14,22 @@
 		FA99EBBF2F8AE9EE0096FD67 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FADD15012F53243200BE0C89 /* Exceptions for "SMBMounter" folder in "SMBMounter" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FA0B7ADB2F53243200BE0C89 /* SMBMounter */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FA0B7ADE2F53243200BE0C89 /* SMBMounter */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FADD15012F53243200BE0C89 /* Exceptions for "SMBMounter" folder in "SMBMounter" target */,
+			);
 			path = SMBMounter;
 			sourceTree = "<group>";
 		};
@@ -73,7 +86,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2710;
 				TargetAttributes = {
 					FA0B7ADB2F53243200BE0C89 = {
 						CreatedOnToolsVersion = 26.3;
@@ -253,11 +266,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = SMBMounter/SMBMounter.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.5;
+				CURRENT_PROJECT_VERSION = 1.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = RYPSKH8HG5;
 				ENABLE_APP_SANDBOX = NO;
@@ -267,13 +281,14 @@
 				INFOPLIST_KEY_CFBundleDisplayName = SMBMounter;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SMBMounter controls Finder to connect your configured SMB and WebDAV network drives.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Developed by Kevin Tobler - www.kevintobler.ch";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.smbmounter.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -293,11 +308,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = SMBMounter/SMBMounter.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.5;
+				CURRENT_PROJECT_VERSION = 1.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = RYPSKH8HG5;
 				ENABLE_APP_SANDBOX = NO;
@@ -307,13 +322,14 @@
 				INFOPLIST_KEY_CFBundleDisplayName = SMBMounter;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SMBMounter controls Finder to connect your configured SMB and WebDAV network drives.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Developed by Kevin Tobler - www.kevintobler.ch";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.smbmounter.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
