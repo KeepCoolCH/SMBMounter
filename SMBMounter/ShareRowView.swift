@@ -25,7 +25,7 @@ struct ShareRowView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                if let error = share.lastError, share.status == .error {
+                if let error = share.lastError {
                     Text(error)
                         .font(.caption2)
                         .foregroundColor(.red)
@@ -39,7 +39,7 @@ struct ShareRowView: View {
             
             Spacer()
             
-            Text(share.status.rawValue)
+            Text(share.lastError?.hasPrefix("Auto-Mount paused:") == true ? "Paused" : share.status.rawValue)
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)

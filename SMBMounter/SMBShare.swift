@@ -61,6 +61,8 @@ struct SMBShare: Identifiable, Codable {
     var username: String
     var mountPoint: String
     var autoMount: Bool = true
+    var restrictAutoMountNetworks = false
+    var allowedIPv4Networks: [String] = []
     var status: MountStatus = .disconnected
     var lastError: String? = nil
     var lastConnected: Date? = nil
@@ -107,6 +109,7 @@ struct SMBShare: Identifiable, Codable {
     
     enum CodingKeys: String, CodingKey {
         case id, name, connectionProtocol, webDAVScheme, host, port, shareName, username, mountPoint, autoMount
+        case restrictAutoMountNetworks, allowedIPv4Networks
     }
     
     init(from decoder: Decoder) throws {
@@ -121,6 +124,8 @@ struct SMBShare: Identifiable, Codable {
         username = try container.decode(String.self, forKey: .username)
         mountPoint = try container.decode(String.self, forKey: .mountPoint)
         autoMount = try container.decode(Bool.self, forKey: .autoMount)
+        restrictAutoMountNetworks = try container.decodeIfPresent(Bool.self, forKey: .restrictAutoMountNetworks) ?? false
+        allowedIPv4Networks = try container.decodeIfPresent([String].self, forKey: .allowedIPv4Networks) ?? []
         status = .disconnected
     }
     

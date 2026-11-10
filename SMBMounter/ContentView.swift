@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var manager: ShareManager
     @State private var showAddSheet = false
     @State private var editingShare: SMBShare? = nil
+    @ObservedObject private var updates = AppUpdateController.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -90,6 +91,28 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
+                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+                Menu {
+                    Button("Check for Updates...") {
+                        AppDelegate.shared?.popover?.close()
+                        updates.check()
+                    }
+                        .disabled(updates.checking)
+                    Toggle("Automatically Check for Updates", isOn: $updates.automaticChecks)
+                    if let update = updates.available {
+                        Button("Download Version \(update.version)") {
+                            NSWorkspace.shared.open(update.downloadURL)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("App Updates")
                 Button("Quit") {
                     NSApp.terminate(nil)
                 }

@@ -2,13 +2,16 @@ import AppKit
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    static weak var shared: AppDelegate?
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.shared = self
         NSApp.setActivationPolicy(.accessory)
         
         setupMenuBar()
+        AppUpdateController.shared.start()
         ShareManager.shared.requestNotificationPermission()
         ShareManager.shared.startMonitoring()
     }

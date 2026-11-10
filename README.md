@@ -2,10 +2,10 @@
 
 # SMBMounter for macOS
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.6)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.7)
 
 **Automatically mount, reconnect, and manage SMB/WebDAV network drives** – directly from your macOS menu bar.  
-Version **1.6** – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
+Version **1.7** (Build **8**) – developed by **Kevin Tobler** 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)
 
 ---
 
@@ -16,6 +16,19 @@ Auto-mount authenticates to the configured server using macOS network services. 
 ## 🔄 Changelog
 
 ### 🆕 Version 1.x
+- **1.7**
+  - 🔎 Added manual app update checks from the menu bar settings
+  - 🔄 Added optional automatic update checks on every app launch and at daily intervals while the app is running
+  - 📥 Available updates open in the browser for manual download and installation
+  - 💬 Update dialogs close the menu bar popover and display centered icons and text in a compact layout
+  - ℹ️ Added the installed app version to the menu bar view
+  - 🌐 Added optional per-share IPv4 CIDR allowlists with multiple networks and add/remove controls
+  - 🛡️ Auto-Mount and reconnect now pause when no active local IPv4 address matches an allowed network, or when an enabled policy is empty or invalid
+  - 🔎 Network checks include active local interfaces, including VPN, and run again immediately before mounting; one matching address is sufficient
+  - ⚠️ Network restrictions do not authenticate the server or guarantee the mount uses the matching interface; another network can reuse the same IP range
+  - 🔓 Manual connections outside allowed networks remain possible after explicit confirmation for that attempt
+  - 🔄 Saving share settings restarts pending mount attempts with the latest configuration and prevents stale attempts from overwriting the new status
+  - ✅ Changing only network restrictions preserves existing mounted connections
 - **1.6**
   - 🔒 Prevented AppleScript injection by escaping mount URLs and validating server addresses before mounting (thanks to daveconf for the report)
   - 🔗 Mount URLs now use structured URL components and correctly encode share paths and credentials
@@ -94,7 +107,7 @@ Auto-mount authenticates to the configured server using macOS network services. 
 
 ## 🔧 Installation
 
-[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.6)
+[![Download SMBMounter](https://img.shields.io/badge/Download-SMBMounter-blue)](https://github.com/KeepCoolCH/SMBMounter/releases/tag/V.1.7)
 
 1. Download the latest **SMBMounter.app** release  
 2. Move **SMBMounter.app** to your **Applications** folder  
@@ -110,9 +123,3 @@ Auto-mount authenticates to the configured server using macOS network services. 
 
 **Kevin Tobler**  
 🌐 [www.kevintobler.ch](https://www.kevintobler.ch)  
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License** – feel free to use, modify, and distribute.

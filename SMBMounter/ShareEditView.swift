@@ -21,6 +21,8 @@ struct ShareEditView: View {
     @State private var password: String = ""
     @State private var mountPoint: String = ""
     @State private var autoMount: Bool = true
+    @State private var restrictAutoMountNetworks = false
+    @State private var allowedIPv4Networks: [String] = []
     @State private var showPassword: Bool = false
     
     var title: String {
@@ -33,7 +35,7 @@ struct ShareEditView: View {
     var saveEnabled: Bool {
         !host.trimmingCharacters(in: .whitespaces).isEmpty &&
         !shareName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        portIsValid
+        portIsValid && (!restrictAutoMountNetworks || (!allowedIPv4Networks.isEmpty && allowedIPv4Networks.allSatisfy { IPv4Network($0) != nil }))
     }
 
     var portIsValid: Bool {
@@ -176,6 +178,32 @@ struct ShareEditView: View {
                         .foregroundColor(.secondary)
                 }
                 
+                Section("Auto-Mount Networks") {
+                    Toggle("Restrict Auto-Mount to IPv4 networks", isOn: $restrictAutoMountNetworks)
+                    if restrictAutoMountNetworks {
+                        ForEach(allowedIPv4Networks.indices, id: \.self) { index in
+                            HStack {
+                                TextField("192.168.1.0/24", text: $allowedIPv4Networks[index])
+                                if IPv4Network(allowedIPv4Networks[index]) == nil {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                        .help("Enter a valid IPv4 CIDR network")
+                                }
+                                Button { allowedIPv4Networks.remove(at: index) } label: {
+                                    Image(systemName: "minus.circle")
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove Network")
+                            }
+                        }
+                        Button { allowedIPv4Networks.append("") } label: {
+                            Label("Add Network", systemImage: "plus.circle")
+                        }
+                        Text("IP ranges do not verify server identity. Other networks can use the same range.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 if !host.isEmpty && !shareName.isEmpty {
                     Section("Preview") {
                         Text(previewURL)
@@ -228,6 +256,8 @@ struct ShareEditView: View {
             username = share.username
             mountPoint = share.mountPoint
             autoMount = share.autoMount
+            restrictAutoMountNetworks = share.restrictAutoMountNetworks
+            allowedIPv4Networks = share.allowedIPv4Networks
             password = KeychainHelper.shared.getPassword(for: share.id) ?? ""
         }
     }
@@ -265,7 +295,7 @@ struct ShareEditView: View {
         
         switch mode {
         case .add:
-            let share = SMBShare(
+            var share = SMBShare(
                 name: displayName,
                 connectionProtocol: connectionProtocol,
                 webDAVScheme: webDAVScheme,
@@ -276,6 +306,8 @@ struct ShareEditView: View {
                 mountPoint: mountPoint,
                 autoMount: autoMount
             )
+            share.restrictAutoMountNetworks = restrictAutoMountNetworks
+            share.allowedIPv4Networks = allowedIPv4Networks.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             onSave(share, password)
             
         case .edit(var share):
@@ -288,6 +320,8 @@ struct ShareEditView: View {
             share.username = username
             share.mountPoint = mountPoint
             share.autoMount = autoMount
+            share.restrictAutoMountNetworks = restrictAutoMountNetworks
+            share.allowedIPv4Networks = allowedIPv4Networks.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             onSave(share, password)
         }
     }

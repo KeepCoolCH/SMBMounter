@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Combine
 import AppKit
 import SwiftUI
@@ -13,6 +14,7 @@ class ShareManager: ObservableObject {
     private let stateQueue = DispatchQueue(label: "com.smbmounter.state")
     private var manuallyDisconnected: Set<UUID> = []
     private var pendingMounts: Set<UUID> = []
+    private var mountAttempts: [UUID: UUID] = [:]
     private var extraRetryCount: [UUID: Int] = [:]
     private var failCount: [UUID: Int] = [:]
     private let maxExtraRetriesAfterDisconnect = 3
@@ -95,6 +97,17 @@ class ShareManager: ObservableObject {
         }
     }
 
+    private func invalidateMountAttempt(_ id: UUID) {
+        stateQueue.sync {
+            mountAttempts[id] = UUID()
+            pendingMounts.remove(id)
+        }
+    }
+
+    private func isCurrentMountAttempt(_ id: UUID, token: UUID) -> Bool {
+        stateQueue.sync { mountAttempts[id] == token }
+    }
+
     private func isPendingMount(_ id: UUID) -> Bool {
         stateQueue.sync { pendingMounts.contains(id) }
     }
@@ -126,7 +139,7 @@ class ShareManager: ObservableObject {
             guard share.status == .disconnected else { return }
             guard !self.isMounted(share) else { return }
 
-            self.mount(share)
+            self.mount(share, automatic: true)
         }
     }
 
@@ -280,7 +293,7 @@ class ShareManager: ObservableObject {
 
         for share in shares where share.autoMount && !isManuallyDisconnected(share.id) {
             if !isMounted(share) {
-                mount(share)
+                mount(share, automatic: true)
             }
         }
 
@@ -340,6 +353,8 @@ class ShareManager: ObservableObject {
     }
 
     private func shouldKeepRetrying(_ share: SMBShare) -> Bool {
+        if let token = Thread.current.threadDictionary["SMBMounterMountAttempt"] as? UUID,
+           !isCurrentMountAttempt(share.id, token: token) { return false }
         guard isNetworkAvailable else { return false }
         guard !isManuallyDisconnected(share.id) else { return false }
         return shares.contains { $0.id == share.id }
@@ -749,6 +764,7 @@ class ShareManager: ObservableObject {
     private func waitUntilMounted(_ share: SMBShare, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
+            guard shouldKeepRetrying(share) else { return false }
             if isMounted(share) {
                 return true
             }
@@ -802,29 +818,104 @@ class ShareManager: ObservableObject {
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
-    func mount(_ share: SMBShare) {
+    private func pauseMount(_ id: UUID, reason: String) {
+        let token = Thread.current.threadDictionary["SMBMounterMountAttempt"] as? UUID
+        DispatchQueue.main.async {
+            if let token, !self.isCurrentMountAttempt(id, token: token) { return }
+            guard let index = self.shares.firstIndex(where: { $0.id == id }) else { return }
+            let message = "Auto-Mount paused: " + reason
+            guard self.shares[index].status != .disconnected || self.shares[index].lastError != message else { return }
+            self.shares[index].status = .disconnected
+            self.shares[index].lastError = message
+            self.updateAppIcon()
+        }
+    }
+
+    private func networkPolicyFailure(for share: SMBShare) -> String? {
+        guard share.restrictAutoMountNetworks else { return nil }
+        let networks = share.allowedIPv4Networks.compactMap(IPv4Network.init)
+        guard !networks.isEmpty, networks.count == share.allowedIPv4Networks.count else {
+            return "Missing or invalid IPv4 network policy."
+        }
+        var interfaces: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&interfaces) == 0, let first = interfaces else {
+            return "Local IPv4 addresses could not be determined."
+        }
+        defer { freeifaddrs(first) }
+        var current: UnsafeMutablePointer<ifaddrs>? = first
+        while let interface = current {
+            defer { current = interface.pointee.ifa_next }
+            let flags = Int32(interface.pointee.ifa_flags)
+            guard flags & IFF_UP != 0, flags & IFF_RUNNING != 0,
+                  flags & IFF_LOOPBACK == 0,
+                  let address = interface.pointee.ifa_addr,
+                  address.pointee.sa_family == UInt8(AF_INET) else { continue }
+            var buffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            guard getnameinfo(address, socklen_t(address.pointee.sa_len), &buffer,
+                              socklen_t(buffer.count), nil, 0, NI_NUMERICHOST) == 0 else { continue }
+            let ip = String(cString: buffer)
+            if networks.contains(where: { $0.contains(ip) }) { return nil }
+        }
+        return "No active local IPv4 address matches an allowed network."
+    }
+
+    func mount(_ share: SMBShare, automatic: Bool = false) {
         clearManuallyDisconnected(share.id)
 
         guard let idx = shares.firstIndex(where: { $0.id == share.id }) else { return }
         guard shares[idx].status != .mounted else { return }
+        guard !isPendingMount(share.id) else { return }
+        if automatic, let reason = networkPolicyFailure(for: shares[idx]) {
+            pauseMount(share.id, reason: reason)
+            return
+        }
+        var networkOverride = false
+        if !automatic, let reason = networkPolicyFailure(for: shares[idx]) {
+            let alert = NSAlert()
+            alert.messageText = "Connect outside allowed networks?"
+            alert.informativeText = reason + " Connect this share manually anyway?"
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Connect")
+            AppUpdateController.shared.present(alert) { response in
+                networkOverride = response == .alertSecondButtonReturn
+            }
+            guard networkOverride else { return }
+        }
         guard beginPendingMount(share.id) else { return }
+        let token = UUID()
+        stateQueue.sync { mountAttempts[share.id] = token }
 
         shares[idx].status = .connecting
         shares[idx].lastError = nil
         updateAppIcon()
 
         mountQueue.async {
-            defer { self.endPendingMount(share.id) }
-            self.performMount(for: share.id)
+            Thread.current.threadDictionary["SMBMounterMountAttempt"] = token
+            defer {
+                Thread.current.threadDictionary.removeObject(forKey: "SMBMounterMountAttempt")
+                self.stateQueue.sync {
+                    if self.mountAttempts[share.id] == token {
+                        self.pendingMounts.remove(share.id)
+                    }
+                }
+            }
+            guard self.isCurrentMountAttempt(share.id, token: token) else { return }
+            self.performMount(for: share.id, networkOverride: networkOverride, token: token)
         }
     }
 
-    private func performMount(for shareID: UUID) {
+    private func performMount(for shareID: UUID, networkOverride: Bool, token: UUID) {
         guard let share = shares.first(where: { $0.id == shareID }) else { return }
         guard shouldKeepRetrying(share) else { return }
 
+        if !networkOverride, let reason = networkPolicyFailure(for: share) {
+            pauseMount(shareID, reason: reason)
+            return
+        }
+
         guard let host = waitForConnectionAvailability(for: share) else {
             DispatchQueue.main.async {
+                guard self.isCurrentMountAttempt(shareID, token: token) else { return }
                 guard let idx = self.shares.firstIndex(where: { $0.id == shareID }) else { return }
                 if self.isManuallyDisconnected(shareID) {
                     self.shares[idx].status = .disconnected
@@ -872,13 +963,18 @@ class ShareManager: ObservableObject {
 
         guard shouldKeepRetrying(share) else { return }
         let allowsUserInteraction = share.username.isEmpty || password.isEmpty
+        if !networkOverride, let reason = networkPolicyFailure(for: share) {
+            pauseMount(shareID, reason: reason)
+            return
+        }
         runFinderMount(urlString: urlString, allowsUserInteraction: allowsUserInteraction) {
-            self.isMounted(share)
+            !self.isCurrentMountAttempt(shareID, token: token) || self.isMounted(share)
         }
 
         let mounted = waitUntilMounted(share, timeout: postMountVerifyTimeout)
 
         DispatchQueue.main.async {
+            guard self.isCurrentMountAttempt(shareID, token: token) else { return }
             guard let idx = self.shares.firstIndex(where: { $0.id == shareID }) else { return }
 
             if self.isManuallyDisconnected(shareID) {
@@ -949,12 +1045,28 @@ class ShareManager: ObservableObject {
         }
         saveShares()
         if s.autoMount {
-            mount(s)
+            mount(s, automatic: true)
         }
     }
 
     func updateShare(_ share: SMBShare, password: String?) {
         guard let idx = shares.firstIndex(where: { $0.id == share.id }) else { return }
+        invalidateMountAttempt(share.id)
+        let previous = shares[idx]
+        let passwordChanged = password.map { !$0.isEmpty && $0 != KeychainHelper.shared.getPassword(for: share.id) } ?? false
+        let connectionChanged = previous.host != share.host || previous.shareName != share.shareName ||
+            previous.connectionProtocol != share.connectionProtocol || previous.webDAVScheme != share.webDAVScheme ||
+            previous.port != share.port || previous.username != share.username || previous.mountPoint != share.mountPoint || passwordChanged
+        if !connectionChanged {
+            var updated = share
+            updated.status = isMounted(share) ? .mounted : .disconnected
+            updated.lastConnected = previous.lastConnected
+            updated.lastError = nil
+            shares[idx] = updated
+            saveShares()
+            if share.autoMount && !isMounted(share) { mount(share, automatic: true) }
+            return
+        }
         let wasAutoMount = shares[idx].autoMount
         let wasMounted = isMounted(shares[idx])
 
@@ -971,7 +1083,7 @@ class ShareManager: ObservableObject {
         saveShares()
 
         if share.autoMount || (wasAutoMount && wasMounted) {
-            mount(share)
+            mount(share, automatic: true)
         }
     }
 
